@@ -532,6 +532,41 @@ impl Client {
     pub fn shipments(&self) -> resources::shipments::ShipmentsClient {
         resources::shipments::ShipmentsClient::new(self.clone())
     }
+
+    /// Access the Work Orders API
+    pub fn work_orders(&self) -> resources::work_orders::WorkOrdersClient {
+        resources::work_orders::WorkOrdersClient::new(self.clone())
+    }
+
+    /// Access the Warranties API
+    pub fn warranties(&self) -> resources::warranties::WarrantiesClient {
+        resources::warranties::WarrantiesClient::new(self.clone())
+    }
+
+    /// Access the BOMs API
+    pub fn boms(&self) -> resources::boms::BomsClient {
+        resources::boms::BomsClient::new(self.clone())
+    }
+
+    /// Access the Products API
+    pub fn products(&self) -> resources::products::ProductsClient {
+        resources::products::ProductsClient::new(self.clone())
+    }
+
+    /// Access the Carts API
+    pub fn carts(&self) -> resources::carts::CartsClient {
+        resources::carts::CartsClient::new(self.clone())
+    }
+
+    /// Access the Checkouts API
+    pub fn checkouts(&self) -> resources::checkouts::CheckoutsClient {
+        resources::checkouts::CheckoutsClient::new(self.clone())
+    }
+
+    /// Access the Analytics API
+    pub fn analytics(&self) -> resources::analytics::AnalyticsClient {
+        resources::analytics::AnalyticsClient::new(self.clone())
+    }
 }
 
 #[cfg(test)]
