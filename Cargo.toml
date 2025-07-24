@@ -1,0 +1,61 @@
+[workspace]
+members = [
+    "stateset-core",
+    "stateset-client", 
+    "stateset-models",
+    "stateset-auth",
+    "stateset-realtime",
+    "stateset-macros",
+    "stateset"
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+authors = ["StateSet Team"]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/stateset/stateset-rust-sdk"
+documentation = "https://docs.rs/stateset"
+
+[workspace.dependencies]
+# HTTP Client
+reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
+hyper = { version = "0.14" }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_urlencoded = "0.7"
+
+# Async Runtime
+tokio = { version = "1", features = ["full"] }
+async-std = { version = "1.12" }
+
+# Error Handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Authentication
+jsonwebtoken = "9.0"
+
+# WebSocket
+tokio-tungstenite = { version = "0.20" }
+
+# Utilities
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.0", features = ["serde", "v4"] }
+url = "2.4"
+log = "0.4"
+tracing = { version = "0.1" }
+
+# Retry & Rate Limiting
+tower = { version = "0.4" }
+governor = { version = "0.6" }
+backoff = "0.4"
+
+# Testing
+mockito = "1.2"
+
+# Other
+base64 = "0.21" 

@@ -1,0 +1,18 @@
+[package]
+name = "stateset-models"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+documentation.workspace = true
+description = "API models and types for StateSet SDK"
+
+[dependencies]
+stateset-core = { path = "../stateset-core" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+
+[dev-dependencies] 

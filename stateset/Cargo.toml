@@ -1,0 +1,38 @@
+[package]
+name = "stateset"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+documentation.workspace = true
+description = "Official Rust SDK for StateSet API"
+keywords = ["stateset", "api", "sdk", "client", "ecommerce"]
+categories = ["api-bindings", "web-programming::http-client"]
+
+[dependencies]
+stateset-core = { path = "../stateset-core" }
+stateset-client = { path = "../stateset-client" }
+stateset-models = { path = "../stateset-models" }
+stateset-auth = { path = "../stateset-auth" }
+stateset-realtime = { path = "../stateset-realtime", optional = true }
+stateset-macros = { path = "../stateset-macros" }
+
+[features]
+default = ["tokio", "rustls", "retry", "rate-limit"]
+tokio = ["stateset-client/tokio"]
+async-std = ["stateset-client/async-std"]
+rustls = []
+native-tls = []
+realtime = ["dep:stateset-realtime"]
+retry = ["stateset-client/retry"]
+rate-limit = ["stateset-client/rate-limit"]
+blocking = []
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+mockito = { workspace = true }
+
+[[example]]
+name = "basic_usage"
+path = "../examples/basic_usage.rs" 

@@ -1,0 +1,38 @@
+[package]
+name = "stateset-client"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+documentation.workspace = true
+description = "HTTP client implementation for StateSet SDK"
+
+[dependencies]
+stateset-core = { path = "../stateset-core" }
+stateset-auth = { path = "../stateset-auth" }
+stateset-models = { path = "../stateset-models" }
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_urlencoded = { workspace = true }
+thiserror = { workspace = true }
+url = { workspace = true }
+log = { workspace = true }
+tokio = { workspace = true, optional = true }
+async-std = { workspace = true, optional = true }
+tower = { workspace = true, optional = true }
+governor = { workspace = true, optional = true }
+backoff = { workspace = true, optional = true }
+futures = "0.3"
+
+[features]
+default = ["tokio"]
+tokio = ["dep:tokio"]
+async-std = ["dep:async-std"]
+retry = ["dep:tower", "dep:backoff"]
+rate-limit = ["dep:governor"]
+
+[dev-dependencies]
+mockito = { workspace = true }
+tokio = { workspace = true, features = ["test-util"] } 

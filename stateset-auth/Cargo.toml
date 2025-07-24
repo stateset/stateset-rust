@@ -1,0 +1,22 @@
+[package]
+name = "stateset-auth"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+documentation.workspace = true
+description = "Authentication handling for StateSet SDK"
+
+[dependencies]
+stateset-core = { path = "../stateset-core" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+jsonwebtoken = { workspace = true }
+thiserror = { workspace = true }
+chrono = { workspace = true }
+base64 = "0.21"
+url = { workspace = true }
+reqwest = { workspace = true }
+
+[dev-dependencies] 
