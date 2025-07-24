@@ -1,10 +1,12 @@
 //! Orders API client implementation
 
-use crate::{Client, request::ListRequestBuilder};
+use crate::{Client, request::{ListRequestBuilder, SortOrder}};
 use stateset_core::{Error, Result, traits::ListResponse, types::ResourceId};
 use stateset_models::order::{
     CreateOrderRequest, Order, OrderListFilters, OrderStatus, UpdateOrderRequest,
 };
+use futures::stream::{Stream, StreamExt};
+use std::pin::Pin;
 
 /// Orders API client
 pub struct OrdersClient {
@@ -50,7 +52,24 @@ impl OrdersClient {
         self.client.post::<Order, _>(&path, &serde_json::json!({})).await
     }
 
-    /// List orders
+    /// Fulfill an order
+    pub async fn fulfill(&self, id: impl Into<ResourceId>) -> Result<Order> {
+        let path = format!("/api/v1/orders/{}/fulfill", id.into());
+        self.client.post::<Order, _>(&path, &serde_json::json!({})).await
+    }
+
+    /// Refund an order
+    pub async fn refund(&self, id: impl Into<ResourceId>, amount: Option<f64>) -> Result<Order> {
+        let path = format!("/api/v1/orders/{}/refund", id.into());
+        let body = if let Some(amount) = amount {
+            serde_json::json!({"amount": amount})
+        } else {
+            serde_json::json!({})
+        };
+        self.client.post::<Order, _>(&path, &body).await
+    }
+
+    /// List orders with a builder pattern
     pub fn list(&self) -> OrderListBuilder {
         OrderListBuilder::new(self.client.clone())
     }
@@ -59,9 +78,18 @@ impl OrdersClient {
     pub async fn create_batch(&self, orders: Vec<CreateOrderRequest>) -> Result<Vec<Order>> {
         self.client.post("/api/v1/orders/batch", &orders).await
     }
+
+    /// Get order analytics
+    pub async fn analytics(&self, date_range: Option<(String, String)>) -> Result<serde_json::Value> {
+        let mut path = "/api/v1/orders/analytics".to_string();
+        if let Some((start, end)) = date_range {
+            path.push_str(&format!("?start_date={}&end_date={}", start, end));
+        }
+        self.client.get(&path).await
+    }
 }
 
-/// Builder for listing orders
+/// Builder for listing orders with enhanced filtering and pagination
 pub struct OrderListBuilder {
     client: Client,
     builder: ListRequestBuilder<OrderListFilters>,
@@ -77,19 +105,42 @@ impl OrderListBuilder {
 
     /// Filter by order status
     pub fn status(mut self, status: OrderStatus) -> Self {
-        self.builder = self.builder.with_filters(OrderListFilters {
-            status: Some(status),
-            ..Default::default()
-        });
+        let mut filters = self.builder.filters.clone().unwrap_or_default();
+        filters.status = Some(status);
+        self.builder = self.builder.with_filters(filters);
         self
     }
 
     /// Filter by customer ID
     pub fn customer(mut self, customer_id: impl Into<ResourceId>) -> Self {
-        self.builder = self.builder.with_filters(OrderListFilters {
-            customer_id: Some(customer_id.into()),
-            ..Default::default()
-        });
+        let mut filters = self.builder.filters.clone().unwrap_or_default();
+        filters.customer_id = Some(customer_id.into());
+        self.builder = self.builder.with_filters(filters);
+        self
+    }
+
+    /// Filter by date range
+    pub fn date_range(mut self, start: String, end: String) -> Self {
+        let mut filters = self.builder.filters.clone().unwrap_or_default();
+        filters.created_after = Some(start);
+        filters.created_before = Some(end);
+        self.builder = self.builder.with_filters(filters);
+        self
+    }
+
+    /// Filter by minimum total amount
+    pub fn min_total(mut self, amount: f64) -> Self {
+        let mut filters = self.builder.filters.clone().unwrap_or_default();
+        filters.min_total = Some(amount);
+        self.builder = self.builder.with_filters(filters);
+        self
+    }
+
+    /// Filter by maximum total amount
+    pub fn max_total(mut self, amount: f64) -> Self {
+        let mut filters = self.builder.filters.clone().unwrap_or_default();
+        filters.max_total = Some(amount);
+        self.builder = self.builder.with_filters(filters);
         self
     }
 
@@ -105,22 +156,54 @@ impl OrderListBuilder {
         self
     }
 
-    /// Execute the request
+    /// Set the cursor for cursor-based pagination
+    pub fn cursor(mut self, cursor: String) -> Self {
+        self.builder = self.builder.cursor(cursor);
+        self
+    }
+
+    /// Sort by field
+    pub fn sort_by_created_at(mut self, order: SortOrder) -> Self {
+        self.builder = self.builder.sort("created_at", order);
+        self
+    }
+
+    /// Sort by total amount
+    pub fn sort_by_total(mut self, order: SortOrder) -> Self {
+        self.builder = self.builder.sort("total", order);
+        self
+    }
+
+    /// Sort by updated date
+    pub fn sort_by_updated_at(mut self, order: SortOrder) -> Self {
+        self.builder = self.builder.sort("updated_at", order);
+        self
+    }
+
+    /// Execute the request and return a single page
     pub async fn execute(&self) -> Result<ListResponse<Order>> {
-        let (options, filters) = self.builder.clone().build();
+        let (options, filters) = self.builder.clone().build()?;
         
-        let mut query_params = serde_json::to_value(options.build())
-            .map_err(|e| Error::Serialization(e))?;
+        let mut query_params = options.to_query_params();
         
-        let filter_value = serde_json::to_value(&filters)
-            .map_err(|e| Error::Serialization(e))?;
-        
-        if let Some(obj) = query_params.as_object_mut() {
-            if let Some(filter_obj) = filter_value.as_object() {
-                for (k, v) in filter_obj {
-                    obj.insert(k.clone(), v.clone());
-                }
-            }
+        // Add filter parameters
+        if let Some(status) = &filters.status {
+            query_params.insert("status".to_string(), status.to_string());
+        }
+        if let Some(customer_id) = &filters.customer_id {
+            query_params.insert("customer_id".to_string(), customer_id.to_string());
+        }
+        if let Some(created_after) = &filters.created_after {
+            query_params.insert("created_after".to_string(), created_after.clone());
+        }
+        if let Some(created_before) = &filters.created_before {
+            query_params.insert("created_before".to_string(), created_before.clone());
+        }
+        if let Some(min_total) = filters.min_total {
+            query_params.insert("min_total".to_string(), min_total.to_string());
+        }
+        if let Some(max_total) = filters.max_total {
+            query_params.insert("max_total".to_string(), max_total.to_string());
         }
 
         self.client
@@ -128,9 +211,74 @@ impl OrderListBuilder {
             .await
     }
 
-    /// Stream all pages of results
-    pub fn stream(self) -> OrderStream {
-        OrderStream::new(self)
+    /// Stream all pages of results with enhanced error handling
+    pub fn stream(self) -> Pin<Box<dyn Stream<Item = Result<Order>> + Send>> {
+        let (options, filters) = match self.builder.clone().build() {
+            Ok(result) => result,
+            Err(e) => {
+                return Box::pin(futures::stream::once(async move { Err(e) }));
+            }
+        };
+
+        let mut query_params = options.to_query_params();
+        
+        // Add filter parameters
+        if let Some(status) = &filters.status {
+            query_params.insert("status".to_string(), status.to_string());
+        }
+        if let Some(customer_id) = &filters.customer_id {
+            query_params.insert("customer_id".to_string(), customer_id.to_string());
+        }
+        if let Some(created_after) = &filters.created_after {
+            query_params.insert("created_after".to_string(), created_after.clone());
+        }
+        if let Some(created_before) = &filters.created_before {
+            query_params.insert("created_before".to_string(), created_before.clone());
+        }
+        if let Some(min_total) = filters.min_total {
+            query_params.insert("min_total".to_string(), min_total.to_string());
+        }
+        if let Some(max_total) = filters.max_total {
+            query_params.insert("max_total".to_string(), max_total.to_string());
+        }
+
+        Box::pin(self.client.stream_with_query("/api/v1/orders", &query_params))
+    }
+
+    /// Collect all results into a vector (use with caution for large datasets)
+    pub async fn collect_all(self) -> Result<Vec<Order>> {
+        let mut results = Vec::new();
+        let mut stream = self.stream();
+        
+        while let Some(item) = stream.next().await {
+            results.push(item?);
+        }
+        
+        Ok(results)
+    }
+
+    /// Count total results without fetching all data
+    pub async fn count(&self) -> Result<u64> {
+        let (options, filters) = self.builder.clone().build()?;
+        
+        let mut query_params = options.to_query_params();
+        query_params.insert("count_only".to_string(), "true".to_string());
+        
+        // Add filter parameters
+        if let Some(status) = &filters.status {
+            query_params.insert("status".to_string(), status.to_string());
+        }
+        if let Some(customer_id) = &filters.customer_id {
+            query_params.insert("customer_id".to_string(), customer_id.to_string());
+        }
+        
+        let response: serde_json::Value = self.client
+            .get_with_query("/api/v1/orders", &query_params)
+            .await?;
+            
+        response.get("count")
+            .and_then(|c| c.as_u64())
+            .ok_or_else(|| Error::network("Invalid count response"))
     }
 }
 
@@ -143,41 +291,7 @@ impl Clone for OrderListBuilder {
     }
 }
 
-/// Stream for paginating through orders
-#[allow(dead_code)]
-pub struct OrderStream {
-    builder: OrderListBuilder,
-    current_page: Option<ListResponse<Order>>,
-    current_index: usize,
-    cursor: Option<String>,
-}
-
-impl OrderStream {
-    fn new(builder: OrderListBuilder) -> Self {
-        Self {
-            builder,
-            current_page: None,
-            current_index: 0,
-            cursor: None,
-        }
-    }
-}
-
-use futures::stream::Stream;
-use std::pin::Pin;
-use std::task::{Context, Poll};
-
-impl Stream for OrderStream {
-    type Item = Result<Order>;
-
-    fn poll_next(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        // Implementation would go here
-        // This is a simplified version - in production you'd implement proper async streaming
-        Poll::Ready(None)
-    }
-}
-
-/// Builder for updating orders
+/// Builder for updating orders with enhanced validation
 pub struct OrderUpdateBuilder {
     client: Client,
     id: ResourceId,
@@ -212,8 +326,29 @@ impl OrderUpdateBuilder {
         self
     }
 
-    /// Execute the update
+    /// Update shipping address
+    pub fn shipping_address(mut self, address: stateset_core::types::Address) -> Self {
+        self.request.shipping_address = Some(address);
+        self
+    }
+
+    /// Validate the update request
+    pub fn validate(&self) -> Result<()> {
+        // Add custom validation logic here
+        if let Some(tracking) = &self.request.tracking_number {
+            if tracking.is_empty() {
+                return Err(Error::validation_field(
+                    "Tracking number cannot be empty",
+                    "tracking_number"
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    /// Execute the update with validation
     pub async fn execute(self) -> Result<Order> {
+        self.validate()?;
         let path = format!("/api/v1/orders/{}", self.id);
         self.client.patch(&path, &self.request).await
     }

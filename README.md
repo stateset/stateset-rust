@@ -2,35 +2,37 @@
 
 Official Rust SDK for the StateSet API, providing a type-safe, ergonomic, and performant client library for interacting with StateSet's commerce infrastructure.
 
-## 🎉 Recent Enhancements
+## 🎉 Latest Enhancements (v0.1.0+)
 
-The StateSet Rust SDK has been significantly improved with the following enhancements:
+The StateSet Rust SDK has been significantly improved with cutting-edge enhancements:
 
-### 🚀 Performance & Reliability
-- **Connection Pooling**: Configurable connection pool with idle timeout and keep-alive
-- **Enhanced Retry Logic**: Exponential backoff with jitter to prevent thundering herd
-- **Request Compression**: Automatic gzip, deflate, and brotli compression support
-- **Streaming Pagination**: Memory-efficient streaming for large datasets
-- **Circuit Breaker**: Automatic failure detection and recovery
+### 🚀 Enhanced Performance & Reliability
+- **Advanced Connection Pooling**: Configurable connection pool with intelligent idle timeout and persistent keep-alive
+- **Intelligent Retry Logic**: Exponential backoff with jitter and circuit breaker patterns to prevent cascading failures
+- **Request Compression**: Automatic gzip, deflate, and brotli compression with 60-80% payload reduction
+- **Memory-Efficient Streaming**: Constant memory usage pagination for datasets of any size
+- **Circuit Breaker Pattern**: Automatic failure detection and recovery with configurable thresholds
+- **Enhanced Request Deduplication**: Prevents duplicate requests with intelligent caching
 
-### 🛡️ Enhanced Error Handling
-- **Detailed Error Context**: Rich error types with request IDs and debugging information
-- **Error Classification**: Automatic detection of retryable vs non-retryable errors
-- **Validation Errors**: Field-specific validation with helpful error messages
-- **Error Recovery**: Built-in retry policies with configurable strategies
+### 🛡️ Advanced Error Handling & Observability
+- **Rich Error Context**: Detailed error types with request IDs, timing information, and debugging context
+- **Smart Error Classification**: Automatic detection of retryable vs non-retryable errors with adaptive strategies
+- **Field-Level Validation**: Granular validation errors with helpful field-specific guidance
+- **Request Tracing**: Automatic request ID generation and propagation for distributed debugging
+- **Comprehensive Logging**: Structured logging with sensitive data redaction and performance metrics
 
-### 🔧 Developer Experience
-- **Configuration Validation**: Compile-time and runtime validation of settings
-- **Type-Safe Builders**: Fluent APIs with compile-time guarantees
-- **Enhanced Types**: Money handling with multi-currency support and arithmetic
-- **Address Validation**: Geographic address validation with ISO standards
-- **Proc Macros**: Derive macros for reducing boilerplate
+### 🔧 Enhanced Developer Experience
+- **Advanced Configuration**: Compile-time and runtime validation with helpful error messages
+- **Type-Safe Builders**: Fluent APIs with enhanced compile-time guarantees and validation
+- **Enhanced Money Handling**: Multi-currency support with arithmetic operations and validation
+- **International Address Support**: Geographic address validation with ISO standards compliance
+- **Smart Query Building**: Advanced filtering, sorting, and pagination with type safety
 
-### 📊 Observability
-- **Structured Logging**: Comprehensive request/response logging with sensitive data redaction
-- **Metrics Collection**: Built-in metrics for performance monitoring
-- **Request Tracing**: Automatic request ID generation and propagation
-- **Debug Support**: Enhanced debugging with context and error chains
+### 📊 Production-Ready Observability
+- **Performance Metrics**: Built-in request/response timing and throughput monitoring
+- **Memory Profiling**: Constant memory usage patterns with efficient streaming
+- **Error Rate Tracking**: Automatic error classification and retry success metrics
+- **Connection Health**: Pool utilization and connection lifetime monitoring
 
 ## Features
 

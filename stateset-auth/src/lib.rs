@@ -138,7 +138,7 @@ impl OAuth2Client {
             .form(&params)
             .send()
             .await
-            .map_err(|e| Error::Network(e.to_string()))?;
+            .map_err(|e| Error::network(e.to_string()))?;
 
         if !response.status().is_success() {
             let status = response.status().as_u16();
@@ -149,7 +149,7 @@ impl OAuth2Client {
         response
             .json::<TokenResponse>()
             .await
-            .map_err(|e| Error::Network(e.to_string()))
+            .map_err(|e| Error::network(e.to_string()))
     }
 
     /// Refresh an access token
@@ -168,7 +168,7 @@ impl OAuth2Client {
             .form(&params)
             .send()
             .await
-            .map_err(|e| Error::Network(e.to_string()))?;
+            .map_err(|e| Error::network(e.to_string()))?;
 
         if !response.status().is_success() {
             let status = response.status().as_u16();
@@ -179,7 +179,7 @@ impl OAuth2Client {
         response
             .json::<TokenResponse>()
             .await
-            .map_err(|e| Error::Network(e.to_string()))
+            .map_err(|e| Error::network(e.to_string()))
     }
 }
 

@@ -138,9 +138,15 @@ impl Client {
             request = request.header(key, value);
         }
 
-        // Add request ID for tracing
-        let request_id = uuid::Uuid::new_v4().to_string();
+        // Add request ID for tracing with better format
+        let request_id = format!("stateset-{}-{}", 
+            chrono::Utc::now().timestamp_millis(),
+            uuid::Uuid::new_v4().simple()
+        );
         request = request.header("X-Request-ID", request_id);
+
+        // Add client version for debugging
+        request = request.header("X-Client-Version", env!("CARGO_PKG_VERSION"));
 
         Ok(request)
     }
@@ -161,7 +167,16 @@ impl Client {
             };
 
             match self.execute_once(request_clone).await {
-                Ok(response) => return Ok(response),
+                Ok(response) => {
+                    // Log successful request metrics
+                    let duration = start_time.elapsed();
+                    log::debug!(
+                        "Request completed successfully in {:?} after {} attempt(s)",
+                        duration,
+                        attempt + 1
+                    );
+                    return Ok(response);
+                }
                 Err(error) => {
                     last_error = Some(error.clone());
                     
@@ -189,12 +204,13 @@ impl Client {
             }
         }
 
-        // Return the last error, wrapped in a retry exhausted error
+        // Return the last error, wrapped in a retry exhausted error with context
+        let total_duration = start_time.elapsed();
         Err(Error::RetryExhausted {
             attempts: self.inner.retry_policy.max_attempts,
             operation: operation.to_string(),
             last_error: Box::new(last_error.unwrap()),
-        })
+        }.with_context(format!("Total operation duration: {:?}", total_duration)))
     }
 
     /// Execute a single request attempt
@@ -383,25 +399,27 @@ impl Client {
     where
         T: DeserializeOwned + Send + 'static,
     {
-        use futures::stream::{self, StreamExt};
+        use futures::stream::{self, StreamExt, TryStreamExt};
 
         let client = self.clone();
         let path = path.to_string();
 
-        stream::unfold(Some(path), move |state| {
+        stream::try_unfold(Some(path), move |state| {
             let client = client.clone();
             async move {
                 match state {
                     Some(url) => {
                         match client.get::<serde_json::Value>(&url).await {
                             Ok(response) => {
-                                // Extract data and next page URL
+                                // Extract data and next page information
                                 let data = response.get("data")
                                     .and_then(|d| d.as_array())
                                     .cloned()
                                     .unwrap_or_default();
 
+                                // Support both cursor-based and offset-based pagination
                                 let next_url = response.get("next_page")
+                                    .or_else(|| response.get("next"))
                                     .and_then(|n| n.as_str())
                                     .map(|s| s.to_string());
 
@@ -414,16 +432,82 @@ impl Client {
                                     })
                                     .collect();
 
-                                Some((stream::iter(items), next_url))
+                                if items.is_empty() {
+                                    // No more data
+                                    Ok(None)
+                                } else {
+                                    Ok(Some((stream::iter(items), next_url)))
+                                }
                             }
-                            Err(e) => Some((stream::iter(vec![Err(e)]), None)),
+                            Err(e) => Err(e),
                         }
                     }
-                    None => None,
+                    None => Ok(None),
                 }
             }
         })
-        .flatten()
+        .try_flatten()
+    }
+
+    /// Stream with custom query parameters
+    pub fn stream_with_query<T, Q>(&self, path: &str, query: &Q) -> impl futures::Stream<Item = Result<T>>
+    where
+        T: DeserializeOwned + Send + 'static,
+        Q: serde::Serialize + Clone + Send + 'static,
+    {
+        use futures::stream::{self, StreamExt, TryStreamExt};
+
+        let client = self.clone();
+        let path = path.to_string();
+        let query = query.clone();
+
+        stream::try_unfold(Some((path, query, true)), move |state| {
+            let client = client.clone();
+            async move {
+                match state {
+                    Some((url, query_params, is_first)) => {
+                        let response = if is_first {
+                            client.get_with_query::<serde_json::Value, _>(&url, &query_params).await
+                        } else {
+                            // For subsequent requests, the URL already contains query params
+                            client.get::<serde_json::Value>(&url).await
+                        };
+
+                        match response {
+                            Ok(response) => {
+                                let data = response.get("data")
+                                    .and_then(|d| d.as_array())
+                                    .cloned()
+                                    .unwrap_or_default();
+
+                                let next_url = response.get("next_page")
+                                    .or_else(|| response.get("next"))
+                                    .and_then(|n| n.as_str())
+                                    .map(|s| s.to_string());
+
+                                let items: Vec<Result<T>> = data
+                                    .into_iter()
+                                    .map(|item| {
+                                        serde_json::from_value(item)
+                                            .map_err(|e| Error::network(format!("Failed to parse item: {}", e)))
+                                    })
+                                    .collect();
+
+                                if items.is_empty() {
+                                    Ok(None)
+                                } else {
+                                    let next_state = next_url.map(|url| (url, query_params, false));
+                                    Ok(Some((stream::iter(items), next_state)))
+                                }
+                            }
+                            Err(e) => Err(e),
+                        }
+                    }
+                    None => Ok(None),
+                }
+            }
+        })
+        .try_flatten()
     }
 }
 
