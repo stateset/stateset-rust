@@ -4,6 +4,40 @@ use serde::{Deserialize, Serialize, Deserializer, Serializer};
 use std::fmt;
 use std::str::FromStr;
 
+/// Reference type for inventory operations
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReferenceType {
+    /// Product reference
+    Product,
+    /// Variant reference
+    Variant,
+    /// SKU reference
+    Sku,
+    /// Barcode reference
+    Barcode,
+    /// Custom reference
+    Custom(String),
+}
+
+impl Default for ReferenceType {
+    fn default() -> Self {
+        Self::Product
+    }
+}
+
+impl fmt::Display for ReferenceType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Product => write!(f, "product"),
+            Self::Variant => write!(f, "variant"),
+            Self::Sku => write!(f, "sku"),
+            Self::Barcode => write!(f, "barcode"),
+            Self::Custom(value) => write!(f, "{}", value),
+        }
+    }
+}
+
 /// Resource identifier type with validation
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ResourceId(String);
@@ -74,11 +108,17 @@ impl From<uuid::Uuid> for ResourceId {
     }
 }
 
-impl<T: Into<String>> From<T> for ResourceId {
-    fn from(value: T) -> Self {
+impl From<String> for ResourceId {
+    fn from(value: String) -> Self {
         // Note: This bypasses validation for convenience
         // Use from_string() for validated creation
-        Self(value.into())
+        Self(value)
+    }
+}
+
+impl From<&str> for ResourceId {
+    fn from(value: &str) -> Self {
+        Self(value.to_string())
     }
 }
 
