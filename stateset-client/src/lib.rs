@@ -5,12 +5,15 @@ use serde::{de::DeserializeOwned, Serialize};
 use stateset_auth::Credentials;
 use stateset_core::{Config, Error, Result};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 use url::Url;
 
 pub mod request;
 pub mod resources;
+pub mod retry;
+pub mod middleware;
 
-
+use retry::RetryPolicy;
 
 /// StateSet HTTP client
 #[derive(Clone)]
@@ -22,6 +25,7 @@ struct ClientInner {
     http: ReqwestClient,
     config: Config,
     credentials: Option<Credentials>,
+    retry_policy: RetryPolicy,
 }
 
 impl Client {
@@ -33,17 +37,52 @@ impl Client {
 
     /// Create a new client with a custom configuration
     pub fn with_config(config: Config) -> Result<Self> {
-        let http = ReqwestClient::builder()
+        let mut builder = ReqwestClient::builder()
             .timeout(config.timeout)
+            .connect_timeout(config.connect_timeout)
             .user_agent(&config.user_agent)
+            .gzip(config.compression)
+            .deflate(config.compression)
+            .brotli(config.compression);
+
+        // Configure connection pooling
+        builder = builder
+            .pool_max_idle_per_host(config.pool_settings.max_connections_per_host)
+            .pool_idle_timeout(Some(config.pool_settings.idle_timeout));
+
+        // Configure keep-alive
+        if let Some(keep_alive) = config.keep_alive {
+            builder = builder.tcp_keepalive(Some(keep_alive));
+        }
+
+        // Configure redirects
+        builder = builder.redirect(reqwest::redirect::Policy::limited(config.max_redirects));
+
+        // Configure TLS
+        if !config.tls_verification {
+            builder = builder.danger_accept_invalid_certs(true);
+        }
+
+        let http = builder
             .build()
-            .map_err(|e| Error::Configuration(format!("Failed to create HTTP client: {}", e)))?;
+            .map_err(|e| Error::config_with_hint(
+                format!("Failed to create HTTP client: {}", e),
+                "Check your configuration settings",
+            ))?;
+
+        let retry_policy = RetryPolicy::new(
+            config.retry_attempts,
+            config.retry_delay,
+            config.max_retry_delay,
+            config.retry_multiplier,
+        );
 
         Ok(Self {
             inner: Arc::new(ClientInner {
                 http,
                 config,
                 credentials: None,
+                retry_policy,
             }),
         })
     }
@@ -54,6 +93,7 @@ impl Client {
             http: self.inner.http.clone(),
             config: self.inner.config.clone(),
             credentials: Some(credentials),
+            retry_policy: self.inner.retry_policy.clone(),
         };
         
         Self {
@@ -77,10 +117,13 @@ impl Client {
             .config
             .base_url
             .join(path)
-            .map_err(|e| Error::Configuration(format!("Invalid URL path: {}", e)))
+            .map_err(|e| Error::config_with_hint(
+                format!("Invalid URL path '{}': {}", path, e),
+                "Ensure the path starts with '/' and contains valid characters",
+            ))
     }
 
-    /// Create a request builder
+    /// Create a request builder with authentication and default headers
     fn request(&self, method: Method, path: &str) -> Result<RequestBuilder> {
         let url = self.build_url(path)?;
         let mut request = self.inner.http.request(method, url);
@@ -90,76 +133,180 @@ impl Client {
             request = request.header("Authorization", credentials.authorization_header());
         }
 
-        // Add common headers
-        request = request
-            .header("Accept", "application/json")
-            .header("Content-Type", "application/json");
+        // Add default headers
+        for (key, value) in &self.inner.config.default_headers {
+            request = request.header(key, value);
+        }
+
+        // Add request ID for tracing
+        let request_id = uuid::Uuid::new_v4().to_string();
+        request = request.header("X-Request-ID", request_id);
 
         Ok(request)
     }
 
-    /// Execute a request and handle the response
+    /// Execute a request with automatic retries and enhanced error handling
     async fn execute<T: DeserializeOwned>(&self, request: RequestBuilder) -> Result<T> {
+        let operation = "execute_request";
+        let start_time = Instant::now();
+
+        let mut last_error = None;
+        
+        for attempt in 0..=self.inner.retry_policy.max_attempts {
+            let request_clone = match request.try_clone() {
+                Some(req) => req,
+                None => {
+                    return Err(Error::network("Request body is not cloneable for retries"));
+                }
+            };
+
+            match self.execute_once(request_clone).await {
+                Ok(response) => return Ok(response),
+                Err(error) => {
+                    last_error = Some(error.clone());
+                    
+                    // Don't retry on the last attempt or non-retryable errors
+                    if attempt >= self.inner.retry_policy.max_attempts || !error.is_retryable() {
+                        break;
+                    }
+
+                    // Calculate delay for next attempt
+                    let delay = self.inner.retry_policy.delay_for_attempt(attempt);
+                    
+                    // Respect retry-after header if present
+                    let actual_delay = error.retry_after().unwrap_or(delay);
+                    
+                    log::debug!(
+                        "Request failed (attempt {}/{}), retrying in {:?}: {}",
+                        attempt + 1,
+                        self.inner.retry_policy.max_attempts + 1,
+                        actual_delay,
+                        error
+                    );
+
+                    tokio::time::sleep(actual_delay).await;
+                }
+            }
+        }
+
+        // Return the last error, wrapped in a retry exhausted error
+        Err(Error::RetryExhausted {
+            attempts: self.inner.retry_policy.max_attempts,
+            operation: operation.to_string(),
+            last_error: Box::new(last_error.unwrap()),
+        })
+    }
+
+    /// Execute a single request attempt
+    async fn execute_once<T: DeserializeOwned>(&self, request: RequestBuilder) -> Result<T> {
         let response = request
             .send()
             .await
             .map_err(|e| {
                 if e.is_timeout() {
-                    Error::Timeout
+                    Error::timeout(self.inner.config.timeout, "http_request")
+                } else if e.is_connect() {
+                    Error::network("Connection failed")
                 } else {
-                    Error::Network(e.to_string())
+                    Error::network(e.to_string())
                 }
             })?;
 
         self.handle_response(response).await
     }
 
-    /// Handle the HTTP response
+    /// Handle the HTTP response with enhanced error processing
     async fn handle_response<T: DeserializeOwned>(&self, response: Response) -> Result<T> {
         let status = response.status();
+        let request_id = response
+            .headers()
+            .get("x-request-id")
+            .and_then(|v| v.to_str().ok())
+            .map(|s| s.to_string());
 
         if status.is_success() {
             response
                 .json::<T>()
                 .await
-                .map_err(|e| Error::Network(format!("Failed to parse JSON: {}", e)))
+                .map_err(|e| Error::network(format!("Failed to parse JSON response: {}", e)))
         } else {
             let status_code = status.as_u16();
             
-            // Extract retry-after header before consuming response
-            let retry_after = if status_code == 429 {
-                response
-                    .headers()
-                    .get("Retry-After")
-                    .and_then(|v| v.to_str().ok())
-                    .and_then(|v| v.parse::<u64>().ok())
-                    .map(std::time::Duration::from_secs)
-            } else {
-                None
-            };
+            // Extract retry-after header
+            let retry_after = self.extract_retry_after(&response);
             
             let error_body = response.text().await.unwrap_or_default();
 
             // Try to parse as JSON error response
-            if let Ok(json_error) = serde_json::from_str::<serde_json::Value>(&error_body) {
+            let mut api_error = if let Ok(json_error) = serde_json::from_str::<serde_json::Value>(&error_body) {
                 if let Some(message) = json_error.get("message").and_then(|v| v.as_str()) {
-                    return Err(Error::api_with_details(status_code, message.to_string(), json_error));
+                    Error::api_with_details(status_code, message.to_string(), json_error)
+                } else {
+                    Error::api(status_code, error_body)
                 }
+            } else {
+                Error::api(status_code, error_body)
+            };
+
+            // Add request ID if available
+            if let Error::Api { request_id: ref mut req_id, .. } = api_error {
+                *req_id = request_id;
             }
 
-            // Handle specific status codes
+            // Return specific error types for common status codes
             match status_code {
                 401 => Err(Error::Authentication {
-                    message: "Unauthorized".to_string(),
+                    message: "Unauthorized - check your API credentials".to_string(),
                 }),
                 403 => Err(Error::Authorization {
-                    message: "Forbidden".to_string(),
+                    message: "Forbidden - insufficient permissions".to_string(),
                 }),
                 404 => Err(Error::NotFound),
+                409 => Err(Error::Conflict {
+                    message: "Resource conflict".to_string(),
+                    retry_after,
+                }),
+                422 => {
+                    // Try to extract validation errors
+                    if let Ok(json) = serde_json::from_str::<serde_json::Value>(&error_body) {
+                        if let Some(errors) = json.get("errors").and_then(|e| e.as_array()) {
+                            let field = errors.first()
+                                .and_then(|e| e.get("field"))
+                                .and_then(|f| f.as_str())
+                                .map(|s| s.to_string());
+                            let message = errors.first()
+                                .and_then(|e| e.get("message"))
+                                .and_then(|m| m.as_str())
+                                .unwrap_or("Validation failed")
+                                .to_string();
+                            
+                            return Err(Error::Validation {
+                                message,
+                                field,
+                                code: None,
+                            });
+                        }
+                    }
+                    Err(api_error)
+                }
                 429 => Err(Error::RateLimit { retry_after }),
-                _ => Err(Error::api(status_code, error_body)),
+                503 => Err(Error::ServiceUnavailable {
+                    message: "Service temporarily unavailable".to_string(),
+                    retry_after,
+                }),
+                _ => Err(api_error),
             }
         }
+    }
+
+    /// Extract retry-after header from response
+    fn extract_retry_after(&self, response: &Response) -> Option<Duration> {
+        response
+            .headers()
+            .get("Retry-After")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.parse::<u64>().ok())
+            .map(Duration::from_secs)
     }
 
     /// GET request
@@ -220,7 +367,7 @@ impl Client {
         let response = request
             .send()
             .await
-            .map_err(|e| Error::Network(e.to_string()))?;
+            .map_err(|e| Error::network(e.to_string()))?;
 
         if response.status().is_success() {
             Ok(())
@@ -229,6 +376,54 @@ impl Client {
                 .await
                 .map(|_| ())
         }
+    }
+
+    /// Stream a paginated endpoint
+    pub fn stream<T>(&self, path: &str) -> impl futures::Stream<Item = Result<T>>
+    where
+        T: DeserializeOwned + Send + 'static,
+    {
+        use futures::stream::{self, StreamExt};
+
+        let client = self.clone();
+        let path = path.to_string();
+
+        stream::unfold(Some(path), move |state| {
+            let client = client.clone();
+            async move {
+                match state {
+                    Some(url) => {
+                        match client.get::<serde_json::Value>(&url).await {
+                            Ok(response) => {
+                                // Extract data and next page URL
+                                let data = response.get("data")
+                                    .and_then(|d| d.as_array())
+                                    .cloned()
+                                    .unwrap_or_default();
+
+                                let next_url = response.get("next_page")
+                                    .and_then(|n| n.as_str())
+                                    .map(|s| s.to_string());
+
+                                // Convert data to stream of individual items
+                                let items: Vec<Result<T>> = data
+                                    .into_iter()
+                                    .map(|item| {
+                                        serde_json::from_value(item)
+                                            .map_err(|e| Error::network(format!("Failed to parse item: {}", e)))
+                                    })
+                                    .collect();
+
+                                Some((stream::iter(items), next_url))
+                            }
+                            Err(e) => Some((stream::iter(vec![Err(e)]), None)),
+                        }
+                    }
+                    None => None,
+                }
+            }
+        })
+        .flatten()
     }
 }
 
@@ -266,5 +461,27 @@ mod tests {
 
         let authenticated = client.authenticate(Credentials::bearer("test-token"));
         assert!(authenticated.is_authenticated());
+    }
+    
+    #[test]
+    fn test_url_building() {
+        let client = Client::new("https://api.stateset.io").unwrap();
+        let url = client.build_url("/orders").unwrap();
+        assert_eq!(url.as_str(), "https://api.stateset.io/orders");
+    }
+    
+    #[test]
+    fn test_config_validation() {
+        let config = Config::builder()
+            .base_url("https://api.stateset.io")
+            .timeout(Duration::from_secs(30))
+            .connect_timeout(Duration::from_secs(10))
+            .retry_attempts(3)
+            .build()
+            .unwrap();
+            
+        assert_eq!(config.base_url.as_str(), "https://api.stateset.io/");
+        assert_eq!(config.timeout, Duration::from_secs(30));
+        assert_eq!(config.retry_attempts, 3);
     }
 } 

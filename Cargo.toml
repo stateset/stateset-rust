@@ -58,4 +58,10 @@ backoff = "0.4"
 mockito = "1.2"
 
 # Other
-base64 = "0.21" 
+base64 = "0.21"
+
+# Random number generation for jitter
+rand = "0.8"
+
+# Async streams for pagination
+futures = "0.3" 
