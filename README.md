@@ -131,6 +131,102 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+## All APIs Usage Examples
+
+### Work Orders API
+```rust
+use stateset::models::work_order::{CreateWorkOrderRequest, WorkOrderType, WorkOrderPriority};
+
+// Create a work order
+let work_order = client
+    .work_orders()
+    .create(
+        CreateWorkOrderRequest::builder()
+            .title("Equipment Maintenance")
+            .priority(WorkOrderPriority::High)
+            .work_order_type(WorkOrderType::Preventive)
+            .estimated_hours(2.0)
+            .build()?
+    )
+    .await?;
+
+// Assign work order to technician
+let assigned = client
+    .work_orders()
+    .assign(work_order.id, technician_id)
+    .await?;
+```
+
+### Products API
+```rust
+use stateset::models::product::{CreateProductRequest, ProductType, CreateProductPricing};
+
+// Create a product
+let product = client
+    .products()
+    .create(
+        CreateProductRequest::builder()
+            .sku("WIDGET-001")
+            .name("Premium Widget")
+            .product_type(ProductType::Physical)
+            .pricing(CreateProductPricing {
+                regular_price: Money::from_decimal(29.99, "USD")?,
+                sale_price: Some(Money::from_decimal(24.99, "USD")?),
+                // ... other pricing fields
+            })
+            .build()?
+    )
+    .await?;
+```
+
+### Carts & Checkout API
+```rust
+use stateset::models::{cart::CreateCartRequest, checkout::CreateCheckoutRequest};
+
+// Create cart and add items
+let cart = client.carts().create(CreateCartRequest::builder().build()).await?;
+let updated_cart = client
+    .carts()
+    .add_item(cart.id, AddCartItemRequest {
+        product_id: product.id,
+        quantity: 2,
+        // ... other fields
+    })
+    .await?;
+
+// Create checkout
+let checkout = client
+    .checkouts()
+    .create(
+        CreateCheckoutRequest::builder()
+            .cart_id(cart.id)
+            .contact(contact)
+            .build()?
+    )
+    .await?;
+```
+
+### Analytics API
+```rust
+use stateset::models::analytics::{CreateAnalyticsReportRequest, ReportType, ChartType};
+
+// Create analytics report
+let report = client
+    .analytics()
+    .create_report(
+        CreateAnalyticsReportRequest::builder()
+            .name("Sales Performance")
+            .report_type(ReportType::Sales)
+            .chart_type(ChartType::Line)
+            .date_range(start_date, end_date)
+            .build()?
+    )
+    .await?;
+
+// Get real-time dashboard
+let dashboard = client.analytics().realtime_dashboard().await?;
+```
+
 ## Enhanced Configuration
 
 The SDK now supports comprehensive configuration with validation:
@@ -369,14 +465,16 @@ let product = CreateProductRequest::builder()
 - ✅ Money Handling - Multi-currency support
 - ✅ Address Validation - International address support
 
+### Recently Added
+- ✅ Work Orders API - Complete work order management with assignment, tracking, and analytics
+- ✅ Warranties API - Comprehensive warranty and claims management
+- ✅ Bill of Materials API - Full BOM management with cost analysis and explosion views
+- ✅ Products API - Complete product catalog management with variants and attributes
+- ✅ Carts API - Shopping cart management with abandonment recovery
+- ✅ Checkout API - Full checkout process with step-by-step tracking
+- ✅ Analytics API - Business intelligence with real-time dashboards and reporting
+
 ### Coming Soon
-- 🚧 Work Orders API
-- 🚧 Warranties API  
-- 🚧 Bill of Materials API
-- 🚧 Products API
-- 🚧 Carts API
-- 🚧 Checkout API
-- 🚧 Analytics API
 - 🚧 Webhooks Support
 - 🚧 GraphQL Integration
 

@@ -68,6 +68,13 @@ pub mod prelude {
         inventory::{InventoryLevel, InventoryReservation},
         returns::{Return, ReturnStatus},
         shipment::{Shipment, ShipmentStatus},
+        work_order::{WorkOrder, WorkOrderStatus, CreateWorkOrderRequest},
+        warranty::{Warranty, WarrantyStatus, CreateWarrantyRequest},
+        bom::{Bom, BomStatus, CreateBomRequest},
+        product::{Product, ProductStatus, CreateProductRequest},
+        cart::{Cart, CartStatus, CreateCartRequest},
+        checkout::{Checkout, CheckoutStatus, CreateCheckoutRequest},
+        analytics::{AnalyticsReport, ReportType, CreateAnalyticsReportRequest},
     };
 }
 
