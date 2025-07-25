@@ -51,7 +51,7 @@ pub mod auth {
 }
 
 // Re-export the client
-pub use stateset_client::{Client, request::RequestOptions};
+pub use stateset_client::{Client, request::{ListOptions, SortOrder}};
 
 // Re-export real-time support if enabled
 #[cfg(feature = "realtime")]

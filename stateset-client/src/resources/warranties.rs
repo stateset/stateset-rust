@@ -1,7 +1,7 @@
 //! Warranties API client implementation
 
 use crate::{Client, request::{ListRequestBuilder, SortOrder}};
-use stateset_core::{Error, Result, traits::ListResponse, types::ResourceId};
+use stateset_core::{Error, Result, ListResponse, types::ResourceId};
 use stateset_models::warranty::{
     CreateWarrantyRequest, Warranty, WarrantyListFilters, WarrantyStatus, WarrantyType,
     UpdateWarrantyRequest, CreateWarrantyClaimRequest, WarrantyClaim, WarrantyClaimListFilters,
@@ -157,23 +157,27 @@ impl WarrantyListBuilder {
         }
     }
 
+    /// Filter by warranty status
     pub fn status(mut self, status: WarrantyStatus) -> Self {
-        self.builder.filters.status = Some(status);
+        self.builder.filters_mut().status = Some(status);
         self
     }
 
+    /// Filter by warranty type
     pub fn warranty_type(mut self, warranty_type: WarrantyType) -> Self {
-        self.builder.filters.warranty_type = Some(warranty_type);
+        self.builder.filters_mut().warranty_type = Some(warranty_type);
         self
     }
 
+    /// Filter by customer
     pub fn customer_id(mut self, customer_id: impl Into<ResourceId>) -> Self {
-        self.builder.filters.customer_id = Some(customer_id.into());
+        self.builder.filters_mut().customer_id = Some(customer_id.into());
         self
     }
 
+    /// Filter by product
     pub fn product_id(mut self, product_id: impl Into<ResourceId>) -> Self {
-        self.builder.filters.product_id = Some(product_id.into());
+        self.builder.filters_mut().product_id = Some(product_id.into());
         self
     }
 
@@ -203,8 +207,9 @@ impl WarrantyClaimListBuilder {
         }
     }
 
+    /// Filter by warranty ID (useful for related lookups)
     pub fn warranty_id(mut self, warranty_id: impl Into<ResourceId>) -> Self {
-        self.builder.filters.warranty_id = Some(warranty_id.into());
+        self.builder.filters_mut().warranty_id = Some(warranty_id.into());
         self
     }
 

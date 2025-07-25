@@ -1,7 +1,7 @@
 //! Orders API client implementation
 
 use crate::{Client, request::{ListRequestBuilder, SortOrder}};
-use stateset_core::{Error, Result, traits::ListResponse, types::ResourceId};
+use stateset_core::{Error, Result, ListResponse, types::{ResourceId, Timestamp}};
 use stateset_models::order::{
     CreateOrderRequest, Order, OrderListFilters, OrderStatus, UpdateOrderRequest,
 };
@@ -105,42 +105,33 @@ impl OrderListBuilder {
 
     /// Filter by order status
     pub fn status(mut self, status: OrderStatus) -> Self {
-        let mut filters = self.builder.filters.clone().unwrap_or_default();
-        filters.status = Some(status);
-        self.builder = self.builder.with_filters(filters);
+        self.builder.filters_mut().status = Some(status);
         self
     }
 
     /// Filter by customer ID
     pub fn customer(mut self, customer_id: impl Into<ResourceId>) -> Self {
-        let mut filters = self.builder.filters.clone().unwrap_or_default();
-        filters.customer_id = Some(customer_id.into());
-        self.builder = self.builder.with_filters(filters);
+        self.builder.filters_mut().customer_id = Some(customer_id.into());
         self
     }
 
     /// Filter by date range
-    pub fn date_range(mut self, start: String, end: String) -> Self {
-        let mut filters = self.builder.filters.clone().unwrap_or_default();
+    pub fn date_range(mut self, start: Timestamp, end: Timestamp) -> Self {
+        let filters = self.builder.filters_mut();
         filters.created_after = Some(start);
         filters.created_before = Some(end);
-        self.builder = self.builder.with_filters(filters);
         self
     }
 
-    /// Filter by minimum total amount
-    pub fn min_total(mut self, amount: f64) -> Self {
-        let mut filters = self.builder.filters.clone().unwrap_or_default();
-        filters.min_total = Some(amount);
-        self.builder = self.builder.with_filters(filters);
+    /// Filter by minimum total amount (in cents)
+    pub fn min_total(mut self, amount: i64) -> Self {
+        self.builder.filters_mut().min_total = Some(amount);
         self
     }
 
-    /// Filter by maximum total amount
-    pub fn max_total(mut self, amount: f64) -> Self {
-        let mut filters = self.builder.filters.clone().unwrap_or_default();
-        filters.max_total = Some(amount);
-        self.builder = self.builder.with_filters(filters);
+    /// Filter by maximum total amount (in cents)
+    pub fn max_total(mut self, amount: i64) -> Self {
+        self.builder.filters_mut().max_total = Some(amount);
         self
     }
 
@@ -194,10 +185,10 @@ impl OrderListBuilder {
             query_params.insert("customer_id".to_string(), customer_id.to_string());
         }
         if let Some(created_after) = &filters.created_after {
-            query_params.insert("created_after".to_string(), created_after.clone());
+            query_params.insert("created_after".to_string(), created_after.to_string());
         }
         if let Some(created_before) = &filters.created_before {
-            query_params.insert("created_before".to_string(), created_before.clone());
+            query_params.insert("created_before".to_string(), created_before.to_string());
         }
         if let Some(min_total) = filters.min_total {
             query_params.insert("min_total".to_string(), min_total.to_string());
@@ -230,10 +221,10 @@ impl OrderListBuilder {
             query_params.insert("customer_id".to_string(), customer_id.to_string());
         }
         if let Some(created_after) = &filters.created_after {
-            query_params.insert("created_after".to_string(), created_after.clone());
+            query_params.insert("created_after".to_string(), created_after.to_string());
         }
         if let Some(created_before) = &filters.created_before {
-            query_params.insert("created_before".to_string(), created_before.clone());
+            query_params.insert("created_before".to_string(), created_before.to_string());
         }
         if let Some(min_total) = filters.min_total {
             query_params.insert("min_total".to_string(), min_total.to_string());

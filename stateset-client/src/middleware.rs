@@ -155,7 +155,7 @@ impl LoggingMiddleware {
 }
 
 impl RequestMiddleware for LoggingMiddleware {
-    fn process_request(&self, request: &Request) -> Result<()> {
+    fn process_request(&self, request: &mut Request) -> Result<()> {
         if self.log_requests {
             log::info!(
                 "HTTP Request: {} {}",
@@ -327,7 +327,7 @@ impl RateLimitMiddleware {
 }
 
 impl RequestMiddleware for RateLimitMiddleware {
-    fn process_request(&self, _request: &Request) -> Result<()> {
+    fn process_request(&self, _request: &mut Request) -> Result<()> {
         if !self.check_rate_limit() {
             return Err(Error::RateLimit {
                 retry_after: Some(Duration::from_secs(60)),
@@ -419,7 +419,7 @@ impl CircuitBreakerMiddleware {
 }
 
 impl RequestMiddleware for CircuitBreakerMiddleware {
-    fn process_request(&self, _request: &Request) -> Result<()> {
+    fn process_request(&self, _request: &mut Request) -> Result<()> {
         if !self.can_execute() {
             return Err(Error::ServiceUnavailable {
                 message: "Circuit breaker is open".to_string(),

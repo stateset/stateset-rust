@@ -27,6 +27,8 @@ backoff = { workspace = true, optional = true }
 futures = "0.3"
 uuid = { workspace = true }
 chrono = { workspace = true }
+rand = { workspace = true }
+urlencoding = "2.1"
 
 [features]
 default = ["tokio"]

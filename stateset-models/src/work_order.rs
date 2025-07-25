@@ -19,6 +19,20 @@ pub enum WorkOrderStatus {
     Closed,
 }
 
+impl std::fmt::Display for WorkOrderStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            WorkOrderStatus::Draft => write!(f, "draft"),
+            WorkOrderStatus::Open => write!(f, "open"),
+            WorkOrderStatus::InProgress => write!(f, "in_progress"),
+            WorkOrderStatus::OnHold => write!(f, "on_hold"),
+            WorkOrderStatus::Completed => write!(f, "completed"),
+            WorkOrderStatus::Cancelled => write!(f, "cancelled"),
+            WorkOrderStatus::Closed => write!(f, "closed"),
+        }
+    }
+}
+
 /// Work order priority enum
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -28,6 +42,18 @@ pub enum WorkOrderPriority {
     High,
     Urgent,
     Critical,
+}
+
+impl std::fmt::Display for WorkOrderPriority {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            WorkOrderPriority::Low => write!(f, "low"),
+            WorkOrderPriority::Normal => write!(f, "normal"),
+            WorkOrderPriority::High => write!(f, "high"),
+            WorkOrderPriority::Urgent => write!(f, "urgent"),
+            WorkOrderPriority::Critical => write!(f, "critical"),
+        }
+    }
 }
 
 /// Work order type enum

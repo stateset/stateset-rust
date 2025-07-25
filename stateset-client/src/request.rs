@@ -5,10 +5,11 @@ use serde::Serialize;
 use std::collections::HashMap;
 
 /// Options for list requests
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize)]
 pub struct ListOptions {
     pub limit: Option<u32>,
     pub page: Option<u32>,
+    pub offset: Option<u32>,
     pub cursor: Option<String>,
     pub sort_by: Option<String>,
     pub sort_order: Option<SortOrder>,
@@ -52,6 +53,12 @@ impl ListOptions {
         self
     }
 
+    /// Set the offset for pagination
+    pub fn offset(mut self, offset: u32) -> Self {
+        self.offset = Some(offset);
+        self
+    }
+
     /// Set the cursor for cursor-based pagination
     pub fn cursor(mut self, cursor: impl Into<String>) -> Self {
         self.cursor = Some(cursor.into());
@@ -80,6 +87,10 @@ impl ListOptions {
         
         if let Some(page) = self.page {
             params.insert("page".to_string(), page.to_string());
+        }
+
+        if let Some(offset) = self.offset {
+            params.insert("offset".to_string(), offset.to_string());
         }
         
         if let Some(cursor) = &self.cursor {
@@ -142,7 +153,9 @@ where
 
     /// Set the page limit with validation
     pub fn limit(mut self, limit: u32) -> Self {
-        self.options = self.options.limit(limit).unwrap_or(self.options);
+        if let Ok(new_options) = self.options.clone().limit(limit) {
+            self.options = new_options;
+        }
         self
     }
 
@@ -164,10 +177,34 @@ where
         self
     }
 
+    /// Set the offset for pagination
+    pub fn offset(mut self, offset: u32) -> Self {
+        self.options = self.options.offset(offset);
+        self
+    }
+
+    /// Set sorting by field and order (alias for sort)
+    pub fn sort_by(mut self, field: impl Into<String>, order: SortOrder) -> Self {
+        self.sort(field, order)
+    }
+
     /// Add filters
     pub fn with_filters(mut self, filters: F) -> Self {
         self.filters = Some(filters);
         self
+    }
+
+    /// Get mutable access to filters, creating default if needed
+    pub fn filters_mut(&mut self) -> &mut F {
+        if self.filters.is_none() {
+            self.filters = Some(F::default());
+        }
+        self.filters.as_mut().unwrap()
+    }
+
+    /// Get reference to filters
+    pub fn filters(&self) -> Option<&F> {
+        self.filters.as_ref()
     }
 
     /// Build the request options and filters

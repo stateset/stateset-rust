@@ -507,6 +507,19 @@ impl<T> Expandable<T> {
 /// Metadata type for storing arbitrary key-value pairs
 pub type Metadata = std::collections::HashMap<String, serde_json::Value>;
 
+/// List response wrapper for API endpoints
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ListResponse<T> {
+    /// The list of items
+    pub data: Vec<T>,
+    /// Whether there are more items available
+    pub has_more: bool,
+    /// Total count of items (if available)
+    pub total_count: Option<usize>,
+    /// Next page cursor (if available)
+    pub next_page: Option<String>,
+}
+
 /// Create a metadata map from key-value pairs
 #[macro_export]
 macro_rules! metadata {

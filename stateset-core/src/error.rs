@@ -7,7 +7,7 @@ use thiserror::Error;
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// Main error type for StateSet SDK
-#[derive(Debug, Error)]
+#[derive(Debug, Error, Clone, serde::Serialize)]
 pub enum Error {
     /// Resource not found
     #[error("Resource not found")]
@@ -51,8 +51,8 @@ pub enum Error {
     },
 
     /// Serialization/deserialization error
-    #[error("Serialization error: {0}")]
-    Serialization(#[from] serde_json::Error),
+    #[error("Serialization error: {message}")]
+    Serialization { message: String },
 
     /// Configuration error with helpful hints
     #[error("Configuration error: {message}")]
@@ -283,6 +283,14 @@ impl Error {
         match self {
             Self::Other(msg) => Self::Other(format!("{}: {}", context.into(), msg)),
             _ => self,
+        }
+    }
+}
+
+impl From<serde_json::Error> for Error {
+    fn from(err: serde_json::Error) -> Self {
+        Self::Serialization {
+            message: err.to_string(),
         }
     }
 } 

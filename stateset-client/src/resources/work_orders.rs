@@ -1,7 +1,7 @@
 //! Work Orders API client implementation
 
 use crate::{Client, request::{ListRequestBuilder, SortOrder}};
-use stateset_core::{Error, Result, traits::ListResponse, types::ResourceId};
+use stateset_core::{Error, Result, ListResponse, types::ResourceId};
 use stateset_models::work_order::{
     CreateWorkOrderRequest, WorkOrder, WorkOrderListFilters, WorkOrderStatus, WorkOrderPriority, 
     WorkOrderType, UpdateWorkOrderRequest,
@@ -148,48 +148,49 @@ impl WorkOrderListBuilder {
 
     /// Filter by work order status
     pub fn status(mut self, status: WorkOrderStatus) -> Self {
-        self.builder.filters.status = Some(status);
+        self.builder.filters_mut().status = Some(status);
         self
     }
 
     /// Filter by work order priority
     pub fn priority(mut self, priority: WorkOrderPriority) -> Self {
-        self.builder.filters.priority = Some(priority);
+        self.builder.filters_mut().priority = Some(priority);
         self
     }
 
     /// Filter by work order type
     pub fn work_order_type(mut self, work_order_type: WorkOrderType) -> Self {
-        self.builder.filters.work_order_type = Some(work_order_type);
+        self.builder.filters_mut().work_order_type = Some(work_order_type);
         self
     }
 
     /// Filter by assigned user
     pub fn assigned_to(mut self, user_id: impl Into<ResourceId>) -> Self {
-        self.builder.filters.assigned_to = Some(user_id.into());
+        self.builder.filters_mut().assigned_to = Some(user_id.into());
         self
     }
 
     /// Filter by customer
     pub fn customer_id(mut self, customer_id: impl Into<ResourceId>) -> Self {
-        self.builder.filters.customer_id = Some(customer_id.into());
+        self.builder.filters_mut().customer_id = Some(customer_id.into());
         self
     }
 
     /// Filter by asset
     pub fn asset_id(mut self, asset_id: impl Into<ResourceId>) -> Self {
-        self.builder.filters.asset_id = Some(asset_id.into());
+        self.builder.filters_mut().asset_id = Some(asset_id.into());
         self
     }
 
     /// Filter by creation date range
     pub fn created_between(mut self, start: impl Into<String>, end: impl Into<String>) -> Self {
         use chrono::{DateTime, Utc};
+        let filters = self.builder.filters_mut();
         if let Ok(start_date) = start.into().parse::<DateTime<Utc>>() {
-            self.builder.filters.created_after = Some(start_date.into());
+            filters.created_after = Some(start_date.into());
         }
         if let Ok(end_date) = end.into().parse::<DateTime<Utc>>() {
-            self.builder.filters.created_before = Some(end_date.into());
+            filters.created_before = Some(end_date.into());
         }
         self
     }
@@ -197,11 +198,12 @@ impl WorkOrderListBuilder {
     /// Filter by scheduled date range
     pub fn scheduled_between(mut self, start: impl Into<String>, end: impl Into<String>) -> Self {
         use chrono::{DateTime, Utc};
+        let filters = self.builder.filters_mut();
         if let Ok(start_date) = start.into().parse::<DateTime<Utc>>() {
-            self.builder.filters.scheduled_after = Some(start_date.into());
+            filters.scheduled_after = Some(start_date.into());
         }
         if let Ok(end_date) = end.into().parse::<DateTime<Utc>>() {
-            self.builder.filters.scheduled_before = Some(end_date.into());
+            filters.scheduled_before = Some(end_date.into());
         }
         self
     }
@@ -234,24 +236,31 @@ impl WorkOrderListBuilder {
     /// Execute the query and return all results as a vector
     pub async fn all(self) -> Result<Vec<WorkOrder>> {
         let mut results = Vec::new();
-        let mut builder = self;
         let mut offset = 0;
         const PAGE_SIZE: u32 = 100;
 
         loop {
-            let response: ListResponse<WorkOrder> = builder
-                .builder
-                .clone()
-                .limit(PAGE_SIZE)
-                .offset(offset)
-                .build()
-                .execute(&builder.client, "/api/v1/work-orders")
+            let (options, filters) = self.builder.clone().limit(PAGE_SIZE).offset(offset).build()?;
+            
+            let mut query_params = options.to_query_params();
+            
+            // Add filter parameters (similar to orders.rs pattern)
+            if let Some(status) = &filters.status {
+                query_params.insert("status".to_string(), status.to_string());
+            }
+            if let Some(priority) = &filters.priority {
+                query_params.insert("priority".to_string(), priority.to_string());
+            }
+            // Add other filters as needed...
+            
+            let response: ListResponse<WorkOrder> = self.client
+                .get_with_query("/api/v1/work-orders", &query_params)
                 .await?;
 
             let page_size = response.data.len();
             results.extend(response.data);
 
-            if page_size < PAGE_SIZE as usize || response.pagination.total <= offset + PAGE_SIZE {
+            if page_size < PAGE_SIZE as usize || response.total_count.unwrap_or(0) <= (offset + PAGE_SIZE) as usize {
                 break;
             }
 
