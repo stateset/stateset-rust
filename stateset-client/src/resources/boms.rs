@@ -1,7 +1,7 @@
 //! BOMs API client implementation
 
 use crate::{Client, request::{ListRequestBuilder, SortOrder}};
-use stateset_core::{Error, Result, traits::ListResponse, types::ResourceId};
+use stateset_core::{Error, Result, ListResponse, types::ResourceId};
 use stateset_models::bom::{
     CreateBomRequest, Bom, BomListFilters, BomStatus, BomType, UpdateBomRequest,
     BomCostAnalysis, BomExplosion,
@@ -84,18 +84,21 @@ impl BomListBuilder {
         }
     }
 
+    /// Filter by BOM status
     pub fn status(mut self, status: BomStatus) -> Self {
-        self.builder.filters.status = Some(status);
+        self.builder.filters_mut().status = Some(status);
         self
     }
 
+    /// Filter by BOM type
     pub fn bom_type(mut self, bom_type: BomType) -> Self {
-        self.builder.filters.bom_type = Some(bom_type);
+        self.builder.filters_mut().bom_type = Some(bom_type);
         self
     }
 
+    /// Filter by product
     pub fn product_id(mut self, product_id: impl Into<ResourceId>) -> Self {
-        self.builder.filters.product_id = Some(product_id.into());
+        self.builder.filters_mut().product_id = Some(product_id.into());
         self
     }
 

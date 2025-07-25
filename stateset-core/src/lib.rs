@@ -11,4 +11,4 @@ pub mod types;
 pub use config::{Config, ConfigBuilder};
 pub use error::{Error, Result};
 pub use traits::{ApiResource, Identifiable, ListableResource, Paginated};
-pub use types::{ResourceId, Timestamp}; 
+pub use types::{ResourceId, Timestamp, ListResponse}; 

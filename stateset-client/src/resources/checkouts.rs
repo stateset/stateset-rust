@@ -1,7 +1,7 @@
 //! Checkouts API client implementation
 
 use crate::{Client, request::{ListRequestBuilder, SortOrder}};
-use stateset_core::{Error, Result, traits::ListResponse, types::ResourceId};
+use stateset_core::{Error, Result, ListResponse, types::ResourceId};
 use stateset_models::checkout::{
     CreateCheckoutRequest, Checkout, CheckoutListFilters, CheckoutStatus, CheckoutStep,
     UpdateCheckoutRequest, CompleteCheckoutRequest, CheckoutCompletionResult,
@@ -112,18 +112,21 @@ impl CheckoutListBuilder {
         }
     }
 
+    /// Filter by checkout status
     pub fn status(mut self, status: CheckoutStatus) -> Self {
-        self.builder.filters.status = Some(status);
+        self.builder.filters_mut().status = Some(status);
         self
     }
 
+    /// Filter by current step
     pub fn current_step(mut self, step: CheckoutStep) -> Self {
-        self.builder.filters.current_step = Some(step);
+        self.builder.filters_mut().current_step = Some(step);
         self
     }
 
+    /// Filter by customer
     pub fn customer_id(mut self, customer_id: impl Into<ResourceId>) -> Self {
-        self.builder.filters.customer_id = Some(customer_id.into());
+        self.builder.filters_mut().customer_id = Some(customer_id.into());
         self
     }
 

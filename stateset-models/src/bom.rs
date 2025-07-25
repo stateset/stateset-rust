@@ -71,7 +71,7 @@ pub struct Bom {
     pub approver: Option<Expandable<User>>,
     pub approved_at: Option<Timestamp>,
     pub parent_bom_id: Option<ResourceId>,
-    pub parent_bom: Option<Expandable<Bom>>,
+    pub parent_bom: Option<Expandable<Box<Bom>>>,
     pub assembly_instructions: Option<String>,
     pub quality_notes: Option<String>,
     pub metadata: Option<Metadata>,

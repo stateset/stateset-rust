@@ -40,10 +40,7 @@ impl Client {
         let mut builder = ReqwestClient::builder()
             .timeout(config.timeout)
             .connect_timeout(config.connect_timeout)
-            .user_agent(&config.user_agent)
-            .gzip(config.compression)
-            .deflate(config.compression)
-            .brotli(config.compression);
+            .user_agent(&config.user_agent);
 
         // Configure connection pooling
         builder = builder
@@ -56,7 +53,7 @@ impl Client {
         }
 
         // Configure redirects
-        builder = builder.redirect(reqwest::redirect::Policy::limited(config.max_redirects));
+        builder = builder.redirect(reqwest::redirect::Policy::limited(config.max_redirects as usize));
 
         // Configure TLS
         if !config.tls_verification {
@@ -258,10 +255,10 @@ impl Client {
                 if let Some(message) = json_error.get("message").and_then(|v| v.as_str()) {
                     Error::api_with_details(status_code, message.to_string(), json_error)
                 } else {
-                    Error::api(status_code, error_body)
+                    Error::api(status_code, error_body.clone())
                 }
             } else {
-                Error::api(status_code, error_body)
+                Error::api(status_code, error_body.clone())
             };
 
             // Add request ID if available

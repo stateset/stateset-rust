@@ -1,7 +1,7 @@
 //! Carts API client implementation
 
 use crate::{Client, request::{ListRequestBuilder, SortOrder}};
-use stateset_core::{Error, Result, traits::ListResponse, types::ResourceId};
+use stateset_core::{Error, Result, ListResponse, types::ResourceId};
 use stateset_models::cart::{
     CreateCartRequest, Cart, CartListFilters, CartStatus, CartType, UpdateCartRequest,
     AddCartItemRequest, UpdateCartItemRequest, ApplyCouponRequest, CartAnalytics,
@@ -122,18 +122,21 @@ impl CartListBuilder {
         }
     }
 
+    /// Filter by cart status
     pub fn status(mut self, status: CartStatus) -> Self {
-        self.builder.filters.status = Some(status);
+        self.builder.filters_mut().status = Some(status);
         self
     }
 
+    /// Filter by cart type
     pub fn cart_type(mut self, cart_type: CartType) -> Self {
-        self.builder.filters.cart_type = Some(cart_type);
+        self.builder.filters_mut().cart_type = Some(cart_type);
         self
     }
 
+    /// Filter by customer
     pub fn customer_id(mut self, customer_id: impl Into<ResourceId>) -> Self {
-        self.builder.filters.customer_id = Some(customer_id.into());
+        self.builder.filters_mut().customer_id = Some(customer_id.into());
         self
     }
 

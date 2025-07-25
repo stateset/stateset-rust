@@ -1,7 +1,7 @@
 //! Analytics API client implementation
 
 use crate::{Client, request::{ListRequestBuilder, SortOrder}};
-use stateset_core::{Error, Result, traits::ListResponse, types::ResourceId};
+use stateset_core::{Error, Result, ListResponse, types::ResourceId};
 use stateset_models::analytics::{
     CreateAnalyticsReportRequest, AnalyticsReport, AnalyticsListFilters, ReportType, ChartType,
     AnalyticsQueryRequest, AnalyticsQueryResponse, SalesAnalytics, CustomerAnalytics,
@@ -137,18 +137,21 @@ impl AnalyticsListBuilder {
         }
     }
 
+    /// Filter by report type
     pub fn report_type(mut self, report_type: ReportType) -> Self {
-        self.builder.filters.report_type = Some(report_type);
+        self.builder.filters_mut().report_type = Some(report_type);
         self
     }
 
+    /// Filter by chart type
     pub fn chart_type(mut self, chart_type: ChartType) -> Self {
-        self.builder.filters.chart_type = Some(chart_type);
+        self.builder.filters_mut().chart_type = Some(chart_type);
         self
     }
 
-    pub fn realtime(mut self, realtime: bool) -> Self {
-        self.builder.filters.is_realtime = Some(realtime);
+    /// Filter by realtime flag
+    pub fn is_realtime(mut self, realtime: bool) -> Self {
+        self.builder.filters_mut().is_realtime = Some(realtime);
         self
     }
 

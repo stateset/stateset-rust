@@ -20,6 +20,21 @@ pub enum OrderStatus {
     Refunded,
 }
 
+impl std::fmt::Display for OrderStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            OrderStatus::Draft => write!(f, "draft"),
+            OrderStatus::Pending => write!(f, "pending"),
+            OrderStatus::Confirmed => write!(f, "confirmed"),
+            OrderStatus::Processing => write!(f, "processing"),
+            OrderStatus::Shipped => write!(f, "shipped"),
+            OrderStatus::Delivered => write!(f, "delivered"),
+            OrderStatus::Cancelled => write!(f, "cancelled"),
+            OrderStatus::Refunded => write!(f, "refunded"),
+        }
+    }
+}
+
 /// Order model
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Order {
@@ -242,4 +257,8 @@ pub struct OrderListFilters {
     pub created_after: Option<Timestamp>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub created_before: Option<Timestamp>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub min_total: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_total: Option<i64>,
 } 

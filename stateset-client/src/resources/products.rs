@@ -1,7 +1,7 @@
 //! Products API client implementation
 
 use crate::{Client, request::{ListRequestBuilder, SortOrder}};
-use stateset_core::{Error, Result, traits::ListResponse, types::ResourceId};
+use stateset_core::{Error, Result, ListResponse, types::ResourceId};
 use stateset_models::product::{
     CreateProductRequest, Product, ProductListFilters, ProductStatus, ProductType,
     UpdateProductRequest,
@@ -90,28 +90,33 @@ impl ProductListBuilder {
         }
     }
 
+    /// Filter by product status
     pub fn status(mut self, status: ProductStatus) -> Self {
-        self.builder.filters.status = Some(status);
+        self.builder.filters_mut().status = Some(status);
         self
     }
 
+    /// Filter by product type
     pub fn product_type(mut self, product_type: ProductType) -> Self {
-        self.builder.filters.product_type = Some(product_type);
+        self.builder.filters_mut().product_type = Some(product_type);
         self
     }
 
+    /// Filter by category
     pub fn category_id(mut self, category_id: impl Into<ResourceId>) -> Self {
-        self.builder.filters.category_id = Some(category_id.into());
+        self.builder.filters_mut().category_id = Some(category_id.into());
         self
     }
 
+    /// Filter by brand
     pub fn brand_id(mut self, brand_id: impl Into<ResourceId>) -> Self {
-        self.builder.filters.brand_id = Some(brand_id.into());
+        self.builder.filters_mut().brand_id = Some(brand_id.into());
         self
     }
 
+    /// Filter by featured status
     pub fn featured(mut self, featured: bool) -> Self {
-        self.builder.filters.featured = Some(featured);
+        self.builder.filters_mut().featured = Some(featured);
         self
     }
 
